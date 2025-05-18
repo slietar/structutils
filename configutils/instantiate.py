@@ -11,6 +11,7 @@ from typing import Any, Optional, Union, get_args, get_origin
 from typeutils import format_type, get_type
 
 from .error import InstantiationError
+from .load import load
 
 
 def instantiate(type_, data, /) -> Any:
@@ -58,19 +59,44 @@ def instantiate(type_, data, /) -> Any:
       return instantiate(other_type, data)
 
 
-  if 0 and (data_type is dict) and ('_target_' in data):
-    subclasses = type_.__subclasses__()
-    subclasses_by_name = { subclass.__name__: subclass for subclass in subclasses }
+  if not inspect.isclass(type_):
+    raise ValueError(f'Unsupported type {format_type(get_type(type_))}')
 
-    if len(subclasses_by_name) == len(subclasses):
-      target = subclasses_by_name[data['_target_']]
+  if data_type is not dict:
+    raise InstantiationError(f'Expected dict, got {format_type(get_type(data))}')
+
+  # Possibly change the target
+  if '_target_' in data:
+    data_target = data['_target_']
+
+    if ':' in data_target:
+      try:
+        target = load(data_target, allow_modules=True)
+      except ImportError as e:
+        raise InstantiationError(f'Cannot load target "{data_target}"') from e
+
+      if not inspect.isclass(target):
+        raise InstantiationError(f'Target {format_type(target)} is not a class')
+
+      if not issubclass(target, type_):
+        raise InstantiationError(f'Target {format_type(target)} is not a subclass of {format_type(type_)}')
     else:
-      raise InstantiationError(f'Cannot find subclass {data['_target_']} of {type_.__name__}')
+      matching_subclass = None
+
+      for subclass in type_.__subclasses__():
+        if subclass.__name__ == data_target:
+          if matching_subclass is not None:
+            raise InstantiationError(f'Multiple subclasses of {type_.__name__} match "{data_target}"')
+
+          matching_subclass = subclass
+
+      if matching_subclass is None:
+        raise InstantiationError(f'Cannot find subclass "{data_target}" of {format_type(type_)}')
+
+      target = matching_subclass
   else:
     target = type_
 
-  if not inspect.isclass(target):
-    raise InstantiationError(f'Unsupported type {format_type(get_type(target))}')
 
   signature = inspect.signature(target)
 
@@ -94,14 +120,14 @@ def instantiate(type_, data, /) -> Any:
     arguments[parameter.name] = instantiate(parameter.annotation, data[parameter.name])
 
   for name, value in data.items():
-    if name in arguments:
+    if (name in arguments) or (name == '_target_'):
       continue
 
     if has_var:
       arguments[name] = instantiate(signature.parameters[name].annotation, value)
       continue
 
-    raise InstantiationError(f'Unexpected argument {name} for {format_type(target)}')
+    raise InstantiationError(f'Unexpected argument "{name}" for {format_type(target)}')
 
   return target(**arguments)
 
@@ -134,13 +160,14 @@ assert instantiate(int | None, None) is None
 assert instantiate(int | None, 3) == 3
 assert instantiate(Optional[int], None) is None
 assert instantiate(A, dict(x=3, y='4')) == A(3, '4')
+assert instantiate(A, dict(_target_='B', x=3, y='4')) == B(3, '4')
 
 print()
 
 with assert_raises(InstantiationError):
   instantiate(list[int], [3, 4.0])
 
-with assert_raises(InstantiationError):
+with assert_raises(ValueError):
   assert instantiate(list[int | str], [3, '4']) == [3, '4']
 
 with assert_raises(InstantiationError):
@@ -151,14 +178,3 @@ with assert_raises(InstantiationError):
 
 with assert_raises(InstantiationError):
   instantiate(A, dict(x=3, y='4', z=5))
-
-
-# print(inspect.signature(A))
-# print(inspect.getfullargspec(A))
-
-# sig = inspect.signature(A)
-
-# print(sig.parameters['x'].annotation)
-# print(sig.return_annotation)
-
-# print(typing.get_overloads(A))
