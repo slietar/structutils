@@ -5,8 +5,9 @@ import inspect
 import types
 import typing
 from dataclasses import dataclass
+from inspect import Parameter
 from types import GenericAlias, UnionType
-from typing import Any, Optional, Protocol, Union, get_args, get_origin
+from typing import Any, Optional, Protocol, Union
 
 from typeutils import format_type, get_type
 
@@ -14,16 +15,17 @@ from .error import InstantiationError
 from .load import load
 
 
-def instantiate(type_, data, /) -> Any:
+def instantiate(schema, data, /) -> Any:
   """
   Instantiate a structure from a type and JSON-serializable corresponding data.
 
   The data is deep-copied and no reference to the original object is retained.
   """
-  print(f'Instantiating \033[31m{format_type(type_)}\033[0m with \033[31m{data}\033[0m')
 
-  if get_origin(type_) is Union:
-    match get_args(type_):
+  # print(f'Instantiating \033[31m{format_type(type_)}\033[0m with \033[31m{data}\033[0m')
+
+  if typing.get_origin(schema) is Union:
+    match typing.get_args(schema):
       case ((other_type, types.NoneType) | (types.NoneType, other_type)):
         if data is None:
           return None
@@ -33,7 +35,7 @@ def instantiate(type_, data, /) -> Any:
 
   data_type = type(data)
 
-  match type_:
+  match schema:
     case builtins.float:
       if not (data_type is int) | (data_type is float):
         raise InstantiationError(f'Expected float, got {format_type(get_type(data))}')
@@ -41,8 +43,8 @@ def instantiate(type_, data, /) -> Any:
       return float(data)
 
     case builtins.int | builtins.str:
-      if data_type is not type_:
-        raise InstantiationError(f'Expected {format_type(type_)}, got {format_type(get_type(data))}')
+      if data_type is not schema:
+        raise InstantiationError(f'Expected {format_type(schema)}, got {format_type(get_type(data))}')
 
       return data
 
@@ -50,7 +52,7 @@ def instantiate(type_, data, /) -> Any:
       if data_type is not list:
         raise InstantiationError(f'Expected list, got {format_type(get_type(data))}')
 
-      return [instantiate(type_.__args__[0], item) for item in data]
+      return [instantiate(schema.__args__[0], item) for item in data]
 
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
       if data is None:
@@ -59,8 +61,8 @@ def instantiate(type_, data, /) -> Any:
       return instantiate(other_type, data)
 
 
-  if not inspect.isclass(type_):
-    raise ValueError(f'Unsupported type {format_type(get_type(type_))}')
+  if not inspect.isclass(schema):
+    raise ValueError(f'Unsupported type {format_type(get_type(schema))}')
 
   if data_type is not dict:
     raise InstantiationError(f'Expected dict, got {format_type(get_type(data))}')
@@ -78,24 +80,27 @@ def instantiate(type_, data, /) -> Any:
       if not inspect.isclass(target):
         raise InstantiationError(f'Target {format_type(target)} is not a class')
 
-      if not issubclass(target, type_):
-        raise InstantiationError(f'Target {format_type(target)} is not a subclass of {format_type(type_)}')
+      if not issubclass(target, schema):
+        raise InstantiationError(f'Target {format_type(target)} is not a subclass of {format_type(schema)}')
     else:
       matching_subclass = None
 
-      for subclass in type_.__subclasses__():
+      for subclass in schema.__subclasses__():
         if subclass.__name__ == data_target:
           if matching_subclass is not None:
-            raise InstantiationError(f'Multiple subclasses of {type_.__name__} match "{data_target}"')
+            raise InstantiationError(f'Multiple subclasses of {schema.__name__} match "{data_target}"')
 
           matching_subclass = subclass
 
       if matching_subclass is None:
-        raise InstantiationError(f'Cannot find subclass "{data_target}" of {format_type(type_)}')
+        raise InstantiationError(f'Cannot find subclass "{data_target}" of {format_type(schema)}')
 
       target = matching_subclass
+
+    SchemaError = InstantiationError
   else:
-    target = type_
+    target = schema
+    SchemaError = ValueError
 
 
   signature = inspect.signature(target)
@@ -104,22 +109,25 @@ def instantiate(type_, data, /) -> Any:
   has_var = False
 
   for parameter in signature.parameters.values():
-    if parameter.kind == inspect.Parameter.POSITIONAL_ONLY:
-      if parameter.default is inspect.Parameter.empty:
-        raise InstantiationError(f'Keyword-only argument "{parameter.name}" of {format_type(target)} is not supported')
+    if parameter.kind is Parameter.POSITIONAL_ONLY:
+      if parameter.default is Parameter.empty:
+        raise InstantiationError(f'Positional-only parameter "{parameter.name}" of {format_type(target)} is not supported')
 
       continue
 
-    if parameter.kind == inspect.Parameter.VAR_POSITIONAL:
+    if parameter.kind is Parameter.VAR_POSITIONAL:
       continue
 
-    if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+    if parameter.kind is Parameter.VAR_KEYWORD:
       has_var = True
       continue
 
+    if parameter.annotation is Parameter.empty:
+      raise SchemaError(f'Parameter "{parameter.name}" of {format_type(schema)} is missing a type annotation')
+
     if parameter.name not in data:
-      if parameter.default is inspect.Parameter.empty:
-        raise InstantiationError(f'Missing required argument "{parameter.name}" for {format_type(target)}')
+      if parameter.default is Parameter.empty:
+        raise SchemaError(f'Missing required argument "{parameter.name}" for {format_type(target)}')
 
       continue
 

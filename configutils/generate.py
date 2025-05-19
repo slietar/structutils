@@ -2,29 +2,28 @@ import builtins
 import dataclasses
 import inspect
 import json
-from pprint import pprint
 import sys
 import types
 import typing
 from dataclasses import InitVar, dataclass
-from types import EllipsisType, GenericAlias, UnionType
-from typing import Any, Optional, Union, get_args, get_origin
+from types import GenericAlias, UnionType
+from typing import Any, Optional, Union
 
 from .attr_docs import get_attr_docs
 
 
-def generate(type_, /, *, _parent_doc: Optional[str] = None) -> Any:
+def generate(schema, /, *, _parent_doc: Optional[str] = None) -> Any:
   doc_dict = dict(description=_parent_doc) if _parent_doc is not None else {}
 
-  if get_origin(type_) is Union:
-    match get_args(type_):
+  if typing.get_origin(schema) is Union:
+    match typing.get_args(schema):
       case ((other_type, types.NoneType) | (types.NoneType, other_type)):
         return dict(anyOf=[
           generate(other_type),
           dict(type='null'),
         ]) | doc_dict
 
-  match type_:
+  match schema:
     case builtins.float:
       return dict(type='number') | doc_dict
     case builtins.int:
@@ -39,7 +38,7 @@ def generate(type_, /, *, _parent_doc: Optional[str] = None) -> Any:
     case GenericAlias(__origin__=builtins.list):
       return dict(
         type='array',
-        items=generate(type_.__args__[0])
+        items=generate(schema.__args__[0])
       ) | doc_dict
 
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
@@ -48,25 +47,25 @@ def generate(type_, /, *, _parent_doc: Optional[str] = None) -> Any:
         dict(type='null'),
       ]) | doc_dict
 
-    case _ if inspect.isclass(type_):
-      if dataclasses.is_dataclass(type_):
-        fields = dataclasses.fields(type_)
-        field_docs = get_attr_docs(type_)
+    case _ if inspect.isclass(schema):
+      if dataclasses.is_dataclass(schema):
+        fields = dataclasses.fields(schema)
+        field_docs = get_attr_docs(schema)
 
         return dict(
           type='object',
           properties={ field.name: generate(field.type, _parent_doc=field_docs[field.name]) for field in fields },
-          title=type_.__name__,
+          title=schema.__name__,
           additionalProperties=False,
-          **(dict(description=type_.__doc__) if type_.__doc__ else {}),
+          **(dict(description=schema.__doc__) if schema.__doc__ else {}),
           required=[field.name for field in fields if field.default is dataclasses.MISSING and not isinstance(field, InitVar)],
         )
 
       return dict(
         type='object',
         properties={},
-        title=type_.__name__,
-        **(dict(description=type_.__doc__) if type_.__doc__ else {}),
+        title=schema.__name__,
+        **(dict(description=schema.__doc__) if schema.__doc__ else {}),
       )
 
     case _:
