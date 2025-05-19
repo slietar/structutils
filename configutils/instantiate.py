@@ -6,7 +6,7 @@ import types
 import typing
 from dataclasses import dataclass
 from types import GenericAlias, UnionType
-from typing import Any, Optional, Union, get_args, get_origin
+from typing import Any, Optional, Protocol, Union, get_args, get_origin
 
 from typeutils import format_type, get_type
 
@@ -104,7 +104,13 @@ def instantiate(type_, data, /) -> Any:
   has_var = False
 
   for parameter in signature.parameters.values():
-    if parameter.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.VAR_POSITIONAL):
+    if parameter.kind == inspect.Parameter.POSITIONAL_ONLY:
+      if parameter.default is inspect.Parameter.empty:
+        raise InstantiationError(f'Keyword-only argument "{parameter.name}" of {format_type(target)} is not supported')
+
+      continue
+
+    if parameter.kind == inspect.Parameter.VAR_POSITIONAL:
       continue
 
     if parameter.kind == inspect.Parameter.VAR_KEYWORD:
@@ -129,11 +135,14 @@ def instantiate(type_, data, /) -> Any:
 
     raise InstantiationError(f'Unexpected argument "{name}" for {format_type(target)}')
 
-  return target(**arguments)
+  try:
+    return target(**arguments)
+  except Exception as e:
+    raise InstantiationError(f'Failed to instantiate {format_type(target)}: {e}') from e
 
 
 @contextlib.contextmanager
-def assert_raises(exception_type: type[Exception]):
+def assert_raises(exception_type: type[Exception], /):
   try:
     yield
   except Exception as e:
@@ -152,6 +161,14 @@ class A:
 class B(A):
   pass
 
+class C:
+  def __init__(self, p: int, /):
+    pass
+
+class D:
+  def __init__(self, p: int = 5):
+    self.p = p
+
 assert instantiate(int, 3) == 3
 assert instantiate(list[int], [3, 4]) == [3, 4]
 assert instantiate(float, 3) == 3.0
@@ -161,6 +178,8 @@ assert instantiate(int | None, 3) == 3
 assert instantiate(Optional[int], None) is None
 assert instantiate(A, dict(x=3, y='4')) == A(3, '4')
 assert instantiate(A, dict(_target_='B', x=3, y='4')) == B(3, '4')
+assert instantiate(D, dict()).p == 5
+assert instantiate(D, dict(p=6)).p == 6
 
 print()
 
@@ -178,3 +197,12 @@ with assert_raises(InstantiationError):
 
 with assert_raises(InstantiationError):
   instantiate(A, dict(x=3, y='4', z=5))
+
+# Maybe change to ValueError?
+with assert_raises(InstantiationError):
+  instantiate(C, dict())
+
+
+class E(Protocol):
+  x: int
+  y: str
