@@ -1,8 +1,8 @@
 from .format import format_type
-from .get import get_type
+from .infer import infer_type
 
 
 __all__ = [
   'format_type',
-  'get_type',
+  'infer_type',
 ]

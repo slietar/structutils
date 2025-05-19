@@ -1,6 +1,5 @@
 import builtins
 import contextlib
-import dataclasses
 import inspect
 import types
 import typing
@@ -9,7 +8,7 @@ from inspect import Parameter
 from types import GenericAlias, UnionType
 from typing import Any, Optional, Protocol, Union
 
-from typeutils import format_type, get_type
+from typeutils import format_type, infer_type
 
 from .error import InstantiationError
 from .load import load
@@ -38,19 +37,19 @@ def instantiate(schema, data, /) -> Any:
   match schema:
     case builtins.float:
       if not (data_type is int) | (data_type is float):
-        raise InstantiationError(f'Expected float, got {format_type(get_type(data))}')
+        raise InstantiationError(f'Expected float, got {format_type(infer_type(data))}')
 
       return float(data)
 
     case builtins.int | builtins.str:
       if data_type is not schema:
-        raise InstantiationError(f'Expected {format_type(schema)}, got {format_type(get_type(data))}')
+        raise InstantiationError(f'Expected {format_type(schema)}, got {format_type(infer_type(data))}')
 
       return data
 
     case GenericAlias(__origin__=builtins.list):
       if data_type is not list:
-        raise InstantiationError(f'Expected list, got {format_type(get_type(data))}')
+        raise InstantiationError(f'Expected list, got {format_type(infer_type(data))}')
 
       return [instantiate(schema.__args__[0], item) for item in data]
 
@@ -62,10 +61,10 @@ def instantiate(schema, data, /) -> Any:
 
 
   if not inspect.isclass(schema):
-    raise ValueError(f'Unsupported type {format_type(get_type(schema))}')
+    raise ValueError(f'Unsupported type {format_type(infer_type(schema))}')
 
   if data_type is not dict:
-    raise InstantiationError(f'Expected dict, got {format_type(get_type(data))}')
+    raise InstantiationError(f'Expected dict, got {format_type(infer_type(data))}')
 
   # Possibly change the target
   if '_target_' in data:
