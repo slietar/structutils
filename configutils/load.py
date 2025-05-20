@@ -1,5 +1,6 @@
 import functools
 import importlib
+from typing import Any
 
 
 @functools.cache
@@ -9,15 +10,14 @@ def _get_regex(*, allow_modules: bool = False):
   name = r'[a-z_]\w*(?:\.[a-z_]\w*)*'
   return re.compile(rf'^{name}(?::{name}){'?' if allow_modules else ''}$', flags=re.IGNORECASE)
 
-def load(specifier: str, /, *, allow_modules: bool):
+def load(specifier: str, /, *, allow_modules: bool) -> Any:
   """
   Raises
     ImportError
-    ModuleNotFoundError
   """
 
   if __debug__ and not _get_regex(allow_modules=allow_modules).match(specifier):
-    raise ImportError(f'Invalid specifier: {specifier}')
+    raise ImportError(f'Invalid specifier "{specifier}"')
 
   parts = specifier.split(':', maxsplit=1)
   module = importlib.import_module(parts[0])
