@@ -1,12 +1,12 @@
 import builtins
 import functools
 import types
+import typing
 from types import EllipsisType, UnionType
-from typing import (Generic, NewType, Optional, TypeVar, Union, get_args,
-                    get_origin)
+from typing import Generic, Literal, NewType, Optional, TypeVar
 
 
-def format_type(type_, /, *, use_optional: bool = False):
+def format_type(type_, /, *, use_optional: bool = False) -> str:
   format = functools.partial(format_type, use_optional=use_optional)
 
   def format_union(args):
@@ -15,9 +15,13 @@ def format_type(type_, /, *, use_optional: bool = False):
 
     return f'{' | '.join(map(format, args))}'
 
-  if get_origin(type_) is Union:
-    args = get_args(type_)
-    return format_union(get_args(type_))
+  origin = typing.get_origin(type_)
+
+  match origin:
+    case typing.Union:
+      return format_union(typing.get_args(type_))
+    case typing.Literal:
+      return f'Literal[{', '.join(map(repr, typing.get_args(type_)))}]'
 
   match type_:
     case builtins.float:
@@ -34,9 +38,11 @@ def format_type(type_, /, *, use_optional: bool = False):
       return 'None'
     case UnionType(__args__=args):
       return format_union(args)
-    case _:
-      args = get_args(type_)
+    case _ if hasattr(type_, '__name__'):
+      args = typing.get_args(type_)
       return type_.__name__ + (f'[{', '.join(map(format, args))}]' if args else '')
+    case _:
+      return '<unknown>'
 
 
 T = TypeVar('T')
@@ -63,3 +69,4 @@ assert format_type(A[T]) == 'A[T]' # type: ignore
 assert format_type(A[int | str]) == 'A[int | str]'
 assert format_type(B) == 'B'
 assert format_type(Optional[int]) == 'int | None'
+assert format_type(Literal['a', 3]) == '''Literal['a', 3]'''
