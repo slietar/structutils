@@ -13,6 +13,15 @@ from .error import SchemaError
 
 def check(schema, /, *, _path: str = ''):
   match typing.get_origin(schema):
+    case builtins.dict:
+      key_schema, value_schema = typing.get_args(schema)
+
+      if key_schema not in (int, str):
+        raise SchemaError(f'Unsupported key type {format_type(key_schema)}')
+
+      check(value_schema, _path=f'{_path}[]')
+      return
+
     case typing.Union:
       match typing.get_args(schema):
         case ((other_type, types.NoneType) | (types.NoneType, other_type)):

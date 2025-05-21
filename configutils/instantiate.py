@@ -7,7 +7,7 @@ import typing
 from dataclasses import dataclass
 from inspect import Parameter
 from types import GenericAlias, UnionType
-from typing import Any, Literal, Optional, override
+from typing import Annotated, Any, Literal, Optional, override
 
 from typeutils import format_type, infer_type
 
@@ -15,19 +15,55 @@ from .error import InstantiationError, SchemaError
 from .load import load
 
 
-def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
+def instantiate(schema, first_data, /, *other_datas, _partial: bool = False) -> Any:
   """
   Instantiate a structure from a type and JSON-serializable corresponding data.
 
   The data is deep-copied and no reference to the original object is retained.
   """
 
-  datas = (first_data, *datas)
+  datas = (first_data, *other_datas)
   local_instantiate = functools.partial(instantiate, _partial=_partial)
 
   # print(f'Instantiating \033[31m{format_type(schema)}\033[0m with ' + ' and '.join(f'\033[31m{data!r}\033[0m' for data in datas) + (' (partial)' if _partial else ''))
+  # from .check import check
+  # check(schema)
+
 
   match typing.get_origin(schema):
+    case builtins.dict:
+      inherit = False
+      key_schema, value_schema = typing.get_args(schema)
+
+      if key_schema not in (int, str):
+        raise SchemaError(f'Unsupported key type {format_type(key_schema)}')
+
+      for data in datas:
+        if type(data) is not dict:
+          raise InstantiationError(f'Expected dict, got {format_type(infer_type(data))}')
+
+      result = dict()
+
+      if inherit:
+        values = dict[str, list[Any]]()
+
+        for data in datas:
+          for key, value in data.items():
+            values.setdefault(local_instantiate(key_schema, key), []).append(value)
+
+        for key, item_values in values.items():
+          result[key] = local_instantiate(value_schema, *item_values)
+      else:
+        for key, value in first_data.items():
+          result[local_instantiate(key_schema, key)] = local_instantiate(value_schema, value)
+
+        for data in datas[1:]:
+          for key, value in data.items():
+            local_instantiate(key_schema, key, _partial=True)
+            local_instantiate(value_schema, value, _partial=True)
+
+      return result
+
     # Handles Optional[.]
     case typing.Union:
       match typing.get_args(schema):
@@ -197,7 +233,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
         raise InstantiationError(f'Failed to instantiate {format_type(first_target)}: {e}') from e
 
     case _:
-      raise SchemaError(f'Unsupported type {format_type(infer_type(schema))}')
+      raise SchemaError(f'Unsupported type {format_type(schema)}')
 
 
 @contextlib.contextmanager
@@ -270,6 +306,7 @@ assert instantiate(E, dict(a=3, x='1')) == E(a=3, x='1')
 assert instantiate(E, dict(a=3), dict(x='1')) == E(a=3, x='1')
 assert instantiate(Optional[F], None, dict(a=dict(x=3))) is None
 assert instantiate(Any, 3, 'a') == 3
+assert instantiate(dict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4}
 
 
 with assert_raises(InstantiationError):
@@ -313,3 +350,9 @@ with assert_raises(InstantiationError):
 
 with assert_raises(InstantiationError):
   instantiate(A, dict(_target_='G'))
+
+with assert_raises(SchemaError):
+  instantiate(dict[A, int], {})
+
+with assert_raises(InstantiationError):
+  instantiate(dict[str, int], {3: 4})
