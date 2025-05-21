@@ -19,7 +19,7 @@ InheritedDictAnn = object()
 type InheritedDict[K, V] = Annotated[dict[K, V], InheritedDictAnn]
 
 
-def instantiate(schema, first_data, /, *other_datas, _partial: bool = False) -> Any:
+def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ...] = (), _partial: bool = False) -> Any:
   """
   Instantiate a structure from a type and JSON-serializable corresponding data.
 
@@ -36,7 +36,7 @@ def instantiate(schema, first_data, /, *other_datas, _partial: bool = False) -> 
 
   match typing.get_origin(schema):
     case builtins.dict:
-      inherit = False
+      inherit = any(ann is InheritedDictAnn for ann in _annotations)
       key_schema, value_schema = typing.get_args(schema)
 
       if key_schema not in (int, str):
@@ -68,6 +68,16 @@ def instantiate(schema, first_data, /, *other_datas, _partial: bool = False) -> 
 
       return result
 
+    case typing.Annotated:
+      return local_instantiate(typing.get_args(schema)[0], *datas, _annotations=schema.__metadata__)
+
+    case typing.Literal:
+      for data in datas:
+        if data not in typing.get_args(schema):
+          raise InstantiationError(f'Expected {format_type(schema)}, got {repr(data)}')
+
+      return first_data
+
     # Handles Optional[.]
     case typing.Union:
       match typing.get_args(schema):
@@ -81,13 +91,6 @@ def instantiate(schema, first_data, /, *other_datas, _partial: bool = False) -> 
             return None
 
           return local_instantiate(other_type, *nonnone_datas)
-
-    case typing.Literal:
-      for data in datas:
-        if data not in typing.get_args(schema):
-          raise InstantiationError(f'Expected {format_type(schema)}, got {repr(data)}')
-
-      return first_data
 
 
   data_types = [type(data) for data in datas]
@@ -316,7 +319,8 @@ assert instantiate(E, dict(a=3), dict(x='1')) == E(a=3, x='1')
 assert instantiate(Optional[F], None, dict(a=dict(x=3))) is None
 assert instantiate(Any, 3, 'a') == 3
 assert instantiate(dict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4}
-# assert instantiate(InheritedDict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4, 'c': 5}
+assert instantiate(Annotated[int, 'foo'], 3) == 3
+assert instantiate(Annotated[dict[str, int], InheritedDictAnn], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4, 'c': 5}
 assert instantiate(H, 3) == 3
 
 

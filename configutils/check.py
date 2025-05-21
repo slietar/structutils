@@ -22,14 +22,18 @@ def check(schema, /, *, _path: str = ''):
       check(value_schema, _path=f'{_path}[]')
       return
 
+    case typing.Annotated:
+      check(typing.get_args(schema)[0])
+      return
+
+    case typing.Literal:
+      return
+
     case typing.Union:
       match typing.get_args(schema):
         case ((other_type, types.NoneType) | (types.NoneType, other_type)):
           check(other_type, _path=_path)
           return
-
-    case typing.Literal:
-      return
 
   match schema:
     case builtins.float | builtins.int | builtins.str | types.NoneType | typing.Any:

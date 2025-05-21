@@ -9,6 +9,9 @@ from typing import Generic, Literal, NewType, Optional, TypeVar
 def format_type(type_, /, *, use_optional: bool = False) -> str:
   format = functools.partial(format_type, use_optional=use_optional)
 
+  if type(type_) is object:
+    return 'object'
+
   def format_union(args):
     if (types.NoneType in args) and use_optional:
       return f'Optional[{' | '.join([format(arg) for arg in args if arg is not types.NoneType])}]'
