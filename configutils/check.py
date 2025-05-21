@@ -12,14 +12,19 @@ from .error import SchemaError
 
 
 def check(schema, /, *, _path: str = ''):
-  if typing.get_origin(schema) is Union:
-    match typing.get_args(schema):
-      case ((other_type, types.NoneType) | (types.NoneType, other_type)):
-        check(other_type, _path=_path)
+  match typing.get_origin(schema):
+    case typing.Union:
+      match typing.get_args(schema):
+        case ((other_type, types.NoneType) | (types.NoneType, other_type)):
+          check(other_type, _path=_path)
+          return
+
+    case typing.Literal:
+      return
 
   match schema:
-    case builtins.float | builtins.int | builtins.str | types.NoneType:
-      return
+    case builtins.float | builtins.int | builtins.str | types.NoneType | typing.Any:
+      pass
 
     case GenericAlias(__origin__=builtins.list):
       check(schema.__args__[0], _path=f'{_path}[]')

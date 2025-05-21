@@ -74,6 +74,9 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
 
       return [local_instantiate(schema.__args__[0], item) for item in first_data]
 
+    case typing.Any:
+      return first_data
+
     # Handles . | None
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
       nonnone_datas = [data for data in datas if data is not None]
@@ -131,14 +134,14 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
       if explicit_targets[0] is not None:
         first_target = explicit_targets[0]
         relevant_datas = [first_data]
-        Error = SchemaError
+        Error = InstantiationError
 
         for data in datas[1:]:
           local_instantiate(schema, data, _partial=True)
       else:
         first_target = schema
         relevant_datas = [data for data, target in zip(datas, explicit_targets) if target is None]
-        Error = InstantiationError
+        Error = SchemaError
 
         for data, target in zip(datas, explicit_targets):
           if target is not None:
@@ -149,18 +152,21 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
       arguments = dict[str, Any]()
       var_parameter = None
 
+      # For now, all parameters are required to have a type annotation, even if
+      # they are not used.
+
       for parameter in signature.parameters.values():
         if parameter.kind is Parameter.POSITIONAL_ONLY:
           if parameter.default is Parameter.empty:
-            raise InstantiationError(f'Positional-only parameter "{parameter.name}" of {format_type(first_target)} is not supported')
+            raise Error(f'Positional-only parameter "{parameter.name}" of {format_type(first_target)} is not supported')
 
-          continue
-
-        if parameter.kind is Parameter.VAR_POSITIONAL:
           continue
 
         if parameter.annotation is Parameter.empty:
           raise Error(f'Parameter "{parameter.name}" of {format_type(schema)} is missing a type annotation')
+
+        if parameter.kind is Parameter.VAR_POSITIONAL:
+          continue
 
         if parameter.kind is Parameter.VAR_KEYWORD:
           var_parameter = parameter
@@ -171,7 +177,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
         if values:
           arguments[parameter.name] = local_instantiate(parameter.annotation, *values)
         elif (parameter.default is Parameter.empty) and (not _partial):
-          raise Error(f'Missing required argument "{parameter.name}" for {format_type(first_target)}')
+          raise InstantiationError(f'Missing required argument "{parameter.name}" for {format_type(first_target)}')
 
       extra_argument_names = {name for data in relevant_datas for name in data.keys() if name != '_target_'} - set(arguments.keys())
 
@@ -239,6 +245,10 @@ class E:
 class F:
   a: A
 
+class G(A):
+  def __init__(self, a: int, /):
+    pass
+
 assert instantiate(int, 3) == 3
 assert instantiate(list[int], [3, 4]) == [3, 4]
 assert instantiate(float, 3) == 3.0
@@ -259,6 +269,7 @@ assert instantiate(E, dict(a=3)) == E(a=3)
 assert instantiate(E, dict(a=3, x='1')) == E(a=3, x='1')
 assert instantiate(E, dict(a=3), dict(x='1')) == E(a=3, x='1')
 assert instantiate(Optional[F], None, dict(a=dict(x=3))) is None
+assert instantiate(Any, 3, 'a') == 3
 
 
 with assert_raises(InstantiationError):
@@ -276,7 +287,7 @@ with assert_raises(InstantiationError):
 with assert_raises(InstantiationError):
   instantiate(A, dict(x=3, y='4', z=5))
 
-with assert_raises(InstantiationError):
+with assert_raises(SchemaError):
   instantiate(C, dict())
 
 with assert_raises(InstantiationError):
@@ -297,5 +308,8 @@ with assert_raises(InstantiationError):
 with assert_raises(InstantiationError):
   instantiate(E, dict(a=3), dict(x='1'), dict(x=1))
 
-with assert_raises(SchemaError):
+with assert_raises(InstantiationError):
   instantiate(A, dict(_target_='B', x=3))
+
+with assert_raises(InstantiationError):
+  instantiate(A, dict(_target_='G'))
