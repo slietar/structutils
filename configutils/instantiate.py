@@ -1,5 +1,6 @@
 import builtins
 import contextlib
+import functools
 import inspect
 import types
 import typing
@@ -22,18 +23,24 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
   """
 
   datas = (first_data, *datas)
+  local_instantiate = functools.partial(instantiate, _partial=_partial)
 
   # print(f'Instantiating \033[31m{format_type(schema)}\033[0m with ' + ' and '.join(f'\033[31m{data!r}\033[0m' for data in datas) + (' (partial)' if _partial else ''))
 
   match typing.get_origin(schema):
+    # Handles Optional[.]
     case typing.Union:
       match typing.get_args(schema):
         case ((other_type, types.NoneType) | (types.NoneType, other_type)):
+          nonnone_datas = [data for data in datas if data is not None]
+
           if first_data is None:
-            # TODO: We still need to check the other types (maybe allow those to be partial)
+            if nonnone_datas:
+              local_instantiate(other_type, *nonnone_datas, _partial=True)
+
             return None
 
-          return instantiate(other_type, *(data for data in datas if data is not None))
+          return local_instantiate(other_type, *nonnone_datas)
 
     case typing.Literal:
       for data in datas:
@@ -65,13 +72,19 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
         if data_type is not list:
           raise InstantiationError(f'Expected list, got {format_type(infer_type(data))}')
 
-      return [instantiate(schema.__args__[0], item) for item in first_data]
+      return [local_instantiate(schema.__args__[0], item) for item in first_data]
 
+    # Handles . | None
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
+      nonnone_datas = [data for data in datas if data is not None]
+
       if first_data is None:
+        if nonnone_datas:
+          local_instantiate(other_type, *nonnone_datas, _partial=True)
+
         return None
 
-      return instantiate(other_type, *(data for data in datas if data is not None))
+      return local_instantiate(other_type, *nonnone_datas)
 
     case _ if inspect.isclass(schema):
       explicit_targets = list[Optional[type]]()
@@ -121,7 +134,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
         Error = SchemaError
 
         for data in datas[1:]:
-          instantiate(schema, data, _partial=True)
+          local_instantiate(schema, data, _partial=True)
       else:
         first_target = schema
         relevant_datas = [data for data, target in zip(datas, explicit_targets) if target is None]
@@ -129,7 +142,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
 
         for data, target in zip(datas, explicit_targets):
           if target is not None:
-            instantiate(target, data, _partial=True)
+            local_instantiate(target, data, _partial=True)
 
       signature = inspect.signature(first_target)
 
@@ -156,7 +169,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
         values = [data[parameter.name] for data in relevant_datas if parameter.name in data]
 
         if values:
-          arguments[parameter.name] = instantiate(parameter.annotation, *values)
+          arguments[parameter.name] = local_instantiate(parameter.annotation, *values)
         elif (parameter.default is Parameter.empty) and (not _partial):
           raise Error(f'Missing required argument "{parameter.name}" for {format_type(first_target)}')
 
@@ -165,7 +178,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
       for name in extra_argument_names:
         if var_parameter is not None:
           values = [data[name] for data in relevant_datas if name in data]
-          arguments[name] = instantiate(var_parameter.annotation, *values)
+          arguments[name] = local_instantiate(var_parameter.annotation, *values)
         else:
           raise InstantiationError(f'Unexpected argument "{name}" for {format_type(first_target)}')
 
@@ -222,6 +235,10 @@ class E:
   def __eq__(self, other):
     return isinstance(other, E) and (self.a == other.a) and (self.b == other.b)
 
+@dataclass
+class F:
+  a: A
+
 assert instantiate(int, 3) == 3
 assert instantiate(list[int], [3, 4]) == [3, 4]
 assert instantiate(float, 3) == 3.0
@@ -241,6 +258,7 @@ assert instantiate(A, dict(_target_='B', x=3, y='4'), dict(x=5)) == B(x=3, y='4'
 assert instantiate(E, dict(a=3)) == E(a=3)
 assert instantiate(E, dict(a=3, x='1')) == E(a=3, x='1')
 assert instantiate(E, dict(a=3), dict(x='1')) == E(a=3, x='1')
+assert instantiate(Optional[F], None, dict(a=dict(x=3))) is None
 
 
 with assert_raises(InstantiationError):
@@ -264,8 +282,8 @@ with assert_raises(InstantiationError):
 with assert_raises(InstantiationError):
   instantiate(Literal['a', 3], 'b')
 
-# with assert_raises(InstantiationError):
-#   instantiate(Optional[int], None, 'a')
+with assert_raises(InstantiationError):
+  instantiate(Optional[int], None, 'a')
 
 with assert_raises(InstantiationError):
   instantiate(A, dict(_target_='B', x=3, y='4'), dict(x='5'))
