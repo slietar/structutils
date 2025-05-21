@@ -10,7 +10,7 @@ from typing import Any, Literal, Optional, override
 
 from typeutils import format_type, infer_type
 
-from .error import InstantiationError
+from .error import InstantiationError, SchemaError
 from .load import load
 
 
@@ -118,14 +118,14 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
       if explicit_targets[0] is not None:
         first_target = explicit_targets[0]
         relevant_datas = [first_data]
-        SchemaError = ValueError
+        Error = SchemaError
 
         for data in datas[1:]:
           instantiate(schema, data, _partial=True)
       else:
         first_target = schema
         relevant_datas = [data for data, target in zip(datas, explicit_targets) if target is None]
-        SchemaError = InstantiationError
+        Error = InstantiationError
 
         for data, target in zip(datas, explicit_targets):
           if target is not None:
@@ -147,7 +147,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
           continue
 
         if parameter.annotation is Parameter.empty:
-          raise SchemaError(f'Parameter "{parameter.name}" of {format_type(schema)} is missing a type annotation')
+          raise Error(f'Parameter "{parameter.name}" of {format_type(schema)} is missing a type annotation')
 
         if parameter.kind is Parameter.VAR_KEYWORD:
           var_parameter = parameter
@@ -158,7 +158,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
         if values:
           arguments[parameter.name] = instantiate(parameter.annotation, *values)
         elif (parameter.default is Parameter.empty) and (not _partial):
-          raise SchemaError(f'Missing required argument "{parameter.name}" for {format_type(first_target)}')
+          raise Error(f'Missing required argument "{parameter.name}" for {format_type(first_target)}')
 
       extra_argument_names = {name for data in relevant_datas for name in data.keys() if name != '_target_'} - set(arguments.keys())
 
@@ -178,7 +178,7 @@ def instantiate(schema, first_data, /, *datas, _partial: bool = False) -> Any:
         raise InstantiationError(f'Failed to instantiate {format_type(first_target)}: {e}') from e
 
     case _:
-      raise ValueError(f'Unsupported type {format_type(infer_type(schema))}')
+      raise SchemaError(f'Unsupported type {format_type(infer_type(schema))}')
 
 
 @contextlib.contextmanager
@@ -246,7 +246,7 @@ assert instantiate(E, dict(a=3), dict(x='1')) == E(a=3, x='1')
 with assert_raises(InstantiationError):
   instantiate(list[int], [3, 4.0])
 
-with assert_raises(ValueError):
+with assert_raises(SchemaError):
   assert instantiate(list[int | str], [3, '4']) == [3, '4']
 
 with assert_raises(InstantiationError):
@@ -278,3 +278,6 @@ with assert_raises(InstantiationError):
 
 with assert_raises(InstantiationError):
   instantiate(E, dict(a=3), dict(x='1'), dict(x=1))
+
+with assert_raises(SchemaError):
+  instantiate(A, dict(_target_='B', x=3))

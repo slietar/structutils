@@ -8,6 +8,8 @@ from typing import Union
 
 from typeutils.format import format_type
 
+from .error import SchemaError
+
 
 def check(schema, /, *, _path: str = ''):
   if typing.get_origin(schema) is Union:
@@ -31,15 +33,15 @@ def check(schema, /, *, _path: str = ''):
       for parameter in signature.parameters.values():
         if parameter.kind is Parameter.POSITIONAL_ONLY:
           if parameter.default is Parameter.empty:
-            raise ValueError(f'Positional-only parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is not supported')
+            raise SchemaError(f'Positional-only parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is not supported')
 
         if parameter.kind is Parameter.VAR_POSITIONAL:
           continue
 
         if parameter.annotation is Parameter.empty:
-          raise ValueError(f'Parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is missing a type annotation')
+          raise SchemaError(f'Parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is missing a type annotation')
 
         check(parameter.annotation, _path=f'{_path}.{parameter.name}')
 
     case _:
-      raise ValueError(f'Unsupported type {format_type(schema)} at {_path or '<root>'}')
+      raise SchemaError(f'Unsupported type {format_type(schema)} at {_path or '<root>'}')
