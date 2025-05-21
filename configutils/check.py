@@ -4,7 +4,7 @@ import types
 import typing
 from inspect import Parameter
 from types import GenericAlias, UnionType
-from typing import Union
+from typing import TypeAliasType
 
 from typeutils.format import format_type
 
@@ -37,6 +37,9 @@ def check(schema, /, *, _path: str = ''):
 
     case GenericAlias(__origin__=builtins.list):
       check(schema.__args__[0], _path=f'{_path}[]')
+
+    case TypeAliasType():
+      check(schema.__value__)
 
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
       check(other_type, _path=_path)

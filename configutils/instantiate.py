@@ -7,12 +7,16 @@ import typing
 from dataclasses import dataclass
 from inspect import Parameter
 from types import GenericAlias, UnionType
-from typing import Annotated, Any, Literal, Optional, override
+from typing import Annotated, Any, Literal, Optional, TypeAliasType, override
 
 from typeutils import format_type, infer_type
 
 from .error import InstantiationError, SchemaError
 from .load import load
+
+
+InheritedDictAnn = object()
+type InheritedDict[K, V] = Annotated[dict[K, V], InheritedDictAnn]
 
 
 def instantiate(schema, first_data, /, *other_datas, _partial: bool = False) -> Any:
@@ -109,6 +113,9 @@ def instantiate(schema, first_data, /, *other_datas, _partial: bool = False) -> 
           raise InstantiationError(f'Expected list, got {format_type(infer_type(data))}')
 
       return [local_instantiate(schema.__args__[0], item) for item in first_data]
+
+    case TypeAliasType():
+      return local_instantiate(schema.__value__, first_data)
 
     case typing.Any:
       return first_data
@@ -285,6 +292,8 @@ class G(A):
   def __init__(self, a: int, /):
     pass
 
+type H = int
+
 assert instantiate(int, 3) == 3
 assert instantiate(list[int], [3, 4]) == [3, 4]
 assert instantiate(float, 3) == 3.0
@@ -307,6 +316,8 @@ assert instantiate(E, dict(a=3), dict(x='1')) == E(a=3, x='1')
 assert instantiate(Optional[F], None, dict(a=dict(x=3))) is None
 assert instantiate(Any, 3, 'a') == 3
 assert instantiate(dict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4}
+# assert instantiate(InheritedDict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4, 'c': 5}
+assert instantiate(H, 3) == 3
 
 
 with assert_raises(InstantiationError):
