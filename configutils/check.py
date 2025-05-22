@@ -35,6 +35,10 @@ def check(schema, /, *, _path: str = ''):
           check(other_type, _path=_path)
           return
 
+    case TypeAliasType(__value__=value):
+      check(value[*typing.get_args(schema)])
+      return
+
   match schema:
     case builtins.float | builtins.int | builtins.str | types.NoneType | typing.Any:
       pass

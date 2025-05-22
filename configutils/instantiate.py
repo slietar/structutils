@@ -92,6 +92,9 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
 
           return local_instantiate(other_type, *nonnone_datas)
 
+    case TypeAliasType(__value__=value):
+      return local_instantiate(value[*typing.get_args(schema)], *datas)
+
 
   data_types = [type(data) for data in datas]
 
@@ -296,6 +299,7 @@ class G(A):
     pass
 
 type H = int
+type I[T] = list[T]
 
 assert instantiate(int, 3) == 3
 assert instantiate(list[int], [3, 4]) == [3, 4]
@@ -321,7 +325,9 @@ assert instantiate(Any, 3, 'a') == 3
 assert instantiate(dict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4}
 assert instantiate(Annotated[int, 'foo'], 3) == 3
 assert instantiate(Annotated[dict[str, int], InheritedDictAnn], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4, 'c': 5}
+assert instantiate(InheritedDict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4, 'c': 5}
 assert instantiate(H, 3) == 3
+assert instantiate(I[int], [3, 4]) == [3, 4]
 
 
 with assert_raises(InstantiationError):
