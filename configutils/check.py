@@ -1,4 +1,5 @@
 import builtins
+from enum import EnumType
 import inspect
 import types
 import typing
@@ -51,6 +52,10 @@ def check(schema, /, *, _path: str = ''):
 
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
       check(other_type, _path=_path)
+
+    # Not strictly necessary as enums are classes anyway
+    case _ if type(schema) is EnumType:
+      pass
 
     case _ if inspect.isclass(schema):
       signature = inspect.signature(schema)

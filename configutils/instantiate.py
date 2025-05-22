@@ -5,6 +5,7 @@ import inspect
 import types
 import typing
 from dataclasses import dataclass
+from enum import Enum, EnumType
 from inspect import Parameter
 from types import GenericAlias, UnionType
 from typing import Annotated, Any, Literal, Optional, TypeAliasType, override
@@ -137,6 +138,14 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
         return None
 
       return local_instantiate(other_type, *nonnone_datas)
+
+    case _ if type(schema) is EnumType:
+      try:
+        values = [schema(data) for data in datas]
+      except ValueError as e:
+        raise InstantiationError('Invalid enum value') from e
+
+      return values[0]
 
     case _ if inspect.isclass(schema):
       explicit_targets = list[Optional[type]]()
@@ -301,6 +310,10 @@ class G(A):
 type H = int
 type I[T] = list[T]
 
+class J(Enum):
+  A = 'a'
+  B = 'b'
+
 assert instantiate(int, 3) == 3
 assert instantiate(list[int], [3, 4]) == [3, 4]
 assert instantiate(float, 3) == 3.0
@@ -328,6 +341,7 @@ assert instantiate(Annotated[dict[str, int], InheritedDictAnn], {'a': 3, 'b': 4}
 assert instantiate(InheritedDict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a': 3, 'b': 4, 'c': 5}
 assert instantiate(H, 3) == 3
 assert instantiate(I[int], [3, 4]) == [3, 4]
+assert instantiate(J, 'a') == J.A
 
 
 with assert_raises(InstantiationError):
@@ -377,3 +391,6 @@ with assert_raises(SchemaError):
 
 with assert_raises(InstantiationError):
   instantiate(dict[str, int], {3: 4})
+
+with assert_raises(InstantiationError):
+  instantiate(J, 'c')
