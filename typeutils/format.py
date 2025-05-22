@@ -2,12 +2,15 @@ import builtins
 import functools
 import types
 import typing
-from types import EllipsisType, UnionType
+from types import EllipsisType, NoneType, UnionType
 from typing import Generic, Literal, NewType, Optional, TypeVar
 
 
 def format_type(type_, /, *, use_optional: bool = False) -> str:
   format = functools.partial(format_type, use_optional=use_optional)
+
+  if type_ is None:
+    return 'None'
 
   if type(type_) is object:
     return 'object'
@@ -73,3 +76,6 @@ assert format_type(A[int | str]) == 'A[int | str]'
 assert format_type(B) == 'B'
 assert format_type(Optional[int]) == 'int | None'
 assert format_type(Literal['a', 3]) == '''Literal['a', 3]'''
+assert format_type(type[A]) == 'type[A]'
+assert format_type(None) == 'None'
+assert format_type(NoneType) == 'None'

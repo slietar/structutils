@@ -13,6 +13,10 @@ from .error import SchemaError
 
 
 def check(schema, /, *, _path: str = ''):
+  if schema is None:
+    return
+
+
   match typing.get_origin(schema):
     case builtins.dict:
       key_schema, value_schema = typing.get_args(schema)
@@ -39,6 +43,7 @@ def check(schema, /, *, _path: str = ''):
     case TypeAliasType(__value__=value):
       check(value[*typing.get_args(schema)])
       return
+
 
   match schema:
     case builtins.float | builtins.int | builtins.str | types.NoneType | typing.Any:

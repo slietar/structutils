@@ -15,6 +15,9 @@ from .attr_docs import get_attr_docs
 def generate(schema, /, *, _parent_doc: Optional[str] = None) -> Any:
   doc_dict = dict(description=_parent_doc) if _parent_doc is not None else {}
 
+  if schema is None:
+    return dict(type='null') | doc_dict
+
   if typing.get_origin(schema) is Union:
     match typing.get_args(schema):
       case ((other_type, types.NoneType) | (types.NoneType, other_type)):
@@ -83,7 +86,7 @@ class A:
   z: list[int]
   """A list of integers"""
 
-  w: Optional[str]
+  w: None
   """An optional string"""
 
   v: Optional[list[Optional[str]]]

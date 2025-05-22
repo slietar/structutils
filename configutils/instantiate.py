@@ -7,8 +7,8 @@ import typing
 from dataclasses import dataclass
 from enum import Enum, EnumType
 from inspect import Parameter
-from types import GenericAlias, UnionType
-from typing import Annotated, Any, Literal, Optional, TypeAliasType, override
+from types import GenericAlias, NoneType, UnionType
+from typing import Annotated, Any, Callable, Literal, Optional, TypeAliasType, override
 
 from typeutils import format_type, infer_type
 
@@ -16,11 +16,14 @@ from .error import InstantiationError, SchemaError
 from .load import load
 
 
+FactoryAnn = object()
+type Factory[T] = Annotated[type[T], FactoryAnn]
+
 InheritedDictAnn = object()
 type InheritedDict[K, V] = Annotated[dict[K, V], InheritedDictAnn]
 
 
-def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ...] = (), _partial: bool = False) -> Any:
+def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ...] = (), _factory: bool = False, _partial: bool = False) -> Any:
   """
   Instantiate a structure from a type and JSON-serializable corresponding data.
 
@@ -34,6 +37,9 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
   # from .check import check
   # check(schema)
 
+
+  if schema is None:
+    return local_instantiate(NoneType, *datas, _annotations=_annotations, _factory=_factory)
 
   match typing.get_origin(schema):
     case builtins.dict:
@@ -70,7 +76,7 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
       return result
 
     case typing.Annotated:
-      return local_instantiate(typing.get_args(schema)[0], *datas, _annotations=schema.__metadata__)
+      return local_instantiate(typing.get_args(schema)[0], *datas, _annotations=schema.__metadata__, _factory=_factory)
 
     case typing.Literal:
       for data in datas:
@@ -107,7 +113,7 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
 
       return float(first_data)
 
-    case builtins.int | builtins.str:
+    case builtins.int | builtins.str | types.NoneType:
       for data_type, data in zip(data_types, datas):
         if data_type is not schema:
           raise InstantiationError(f'Expected {format_type(schema)}, got {format_type(infer_type(data))}')
@@ -120,6 +126,9 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
           raise InstantiationError(f'Expected list, got {format_type(infer_type(data))}')
 
       return [local_instantiate(schema.__args__[0], item) for item in first_data]
+
+    case GenericAlias(__origin__=builtins.type):
+      return local_instantiate(schema.__args__[0], first_data, _factory=True)
 
     case TypeAliasType():
       return local_instantiate(schema.__value__, first_data)
@@ -246,6 +255,9 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
         else:
           raise InstantiationError(f'Unexpected argument "{name}" for {format_type(first_target)}')
 
+      if _factory:
+        return lambda: first_target(**arguments)
+
       if _partial:
         return None
 
@@ -342,6 +354,10 @@ assert instantiate(InheritedDict[str, int], {'a': 3, 'b': 4}, {'c': 5}) == {'a':
 assert instantiate(H, 3) == 3
 assert instantiate(I[int], [3, 4]) == [3, 4]
 assert instantiate(J, 'a') == J.A
+# print(instantiate(Factory[A], dict(x=3, y='4')))
+# assert instantiate(Factory[A], dict(x=3, y='4'))() == A(3, '4')
+# assert instantiate(Annotated[type[A], FactoryDelayedArgs(0, 'x', 'y')], dict(x=3))(y='4') == A(3, '4')
+assert instantiate(None, None) is None
 
 
 with assert_raises(InstantiationError):
