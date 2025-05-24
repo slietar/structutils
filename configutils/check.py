@@ -1,18 +1,19 @@
 import builtins
-from enum import EnumType
 import inspect
 import types
 import typing
+from enum import Enum, EnumType, Flag
 from inspect import Parameter
 from types import GenericAlias, UnionType
-from typing import TypeAliasType
+from typing import Any, TypeAliasType
 
+from .annotations import ExactAnn
 from typeutils.format import format_type
 
 from .error import SchemaError
 
 
-def check(schema, /, *, _path: str = ''):
+def check(schema, /, *, _annotations: tuple[Any, ...] = (), _path: str = ''):
   if schema is None:
     return
 
@@ -28,7 +29,7 @@ def check(schema, /, *, _path: str = ''):
       return
 
     case typing.Annotated:
-      check(typing.get_args(schema)[0])
+      check(typing.get_args(schema)[0], _annotations=schema.__metadata__, _path=_path)
       return
 
     case typing.Literal:
@@ -46,7 +47,7 @@ def check(schema, /, *, _path: str = ''):
 
 
   match schema:
-    case builtins.float | builtins.int | builtins.str | types.NoneType | typing.Any:
+    case builtins.bool | builtins.float | builtins.int | builtins.str | types.NoneType | typing.Any:
       pass
 
     case GenericAlias(__origin__=builtins.list):
@@ -59,24 +60,38 @@ def check(schema, /, *, _path: str = ''):
       check(other_type, _path=_path)
 
     # Not strictly necessary as enums are classes anyway
-    case _ if type(schema) is EnumType:
+    case EnumType() if issubclass(schema, (Enum, Flag)):
       pass
 
     case _ if inspect.isclass(schema):
-      signature = inspect.signature(schema)
+      exact_ann = any(ann is ExactAnn for ann in _annotations)
 
-      for parameter in signature.parameters.values():
-        if parameter.kind is Parameter.POSITIONAL_ONLY:
-          if parameter.default is Parameter.empty:
-            raise SchemaError(f'Positional-only parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is not supported')
+      if inspect.isabstract(schema) or typing.is_protocol(schema):
+        if exact_ann:
+          raise SchemaError(f'Exact annotation is not allowed for abstract or protocol class {format_type(schema)} at {_path or "<root>"}')
+      else:
+        functions = typing.get_overloads(schema.__init__) or [schema]
 
-        if parameter.kind is Parameter.VAR_POSITIONAL:
-          continue
+        for function in functions:
+          signature = inspect.signature(function)
 
-        if parameter.annotation is Parameter.empty:
-          raise SchemaError(f'Parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is missing a type annotation')
+          for parameter in signature.parameters.values():
+            if parameter.kind is Parameter.POSITIONAL_ONLY:
+              if parameter.default is Parameter.empty:
+                raise SchemaError(f'Positional-only parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} has no default value')
 
-        check(parameter.annotation, _path=f'{_path}.{parameter.name}')
+              continue
+
+            if parameter.kind is Parameter.VAR_POSITIONAL:
+              continue
+
+            if parameter.annotation is Parameter.empty:
+              if parameter.default is Parameter.empty:
+                raise SchemaError(f'Parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is missing a type annotation or a default value')
+
+              continue
+
+            check(parameter.annotation, _path=f'{_path}.{parameter.name}')
 
     case _:
       raise SchemaError(f'Unsupported type {format_type(schema)} at {_path or '<root>'}')
