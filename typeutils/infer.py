@@ -1,14 +1,22 @@
 import functools
+import inspect
 import operator
-from types import EllipsisType, NoneType
-from typing import Any
+from types import EllipsisType
+from typing import Any, Callable
 
 
 # TODO: Use TypeForm in Python 3.15 (PEP 747)
+# TODO: Recursive values
+# TODO: Callables
 
 def infer_type(value: Any, /):
-  for collection_type in (list, set):
-    if isinstance(value, collection_type):
+  value_type = type(value)
+
+  if value is None:
+    return None
+
+  for collection_type in (frozenset, list, set):
+    if value_type is collection_type:
       if value:
         return collection_type[ # type: ignore
           functools.reduce(operator.or_, (infer_type(item) for item in value))
@@ -16,22 +24,27 @@ def infer_type(value: Any, /):
       else:
         return collection_type
 
-  match value:
-    case None:
-      return None
-    case dict() if value:
+  if value_type is dict:
+    if value:
       return dict[
         functools.reduce(operator.or_, (infer_type(key) for key in value.keys())),
         functools.reduce(operator.or_, (infer_type(value) for value in value.values())),
       ]
-    case dict():
+    else:
       return dict
-    case tuple():
-      return tuple[*(map(infer_type, value))]
-    case _ if hasattr(value, '__orig_class__'):
-      return value.__orig_class__
-    case _:
-      return type(value)
+
+  if value_type is tuple:
+    return tuple[*(map(infer_type, value))]
+
+  # For generics
+  if hasattr(value, '__orig_class__'):
+    return value.__orig_class__
+
+  if inspect.isfunction(value):
+    signature = inspect.signature(value)
+    return Callable[..., Any]
+
+  return type(value)
 
 
 assert infer_type([3, 4]) == list[int]
@@ -42,7 +55,15 @@ assert infer_type(Ellipsis) == EllipsisType
 assert infer_type(3) == int
 assert infer_type('foo') == str
 assert infer_type({3, 4}) == set[int]
+assert infer_type(frozenset({3, 4})) == frozenset[int]
 assert infer_type({}) == dict
 assert infer_type({3: 'a', 4: 'b'}) == dict[int, str]
 assert infer_type({3: 'a', 4: 5}) == dict[int, int | str]
 assert infer_type((3, 'a')) == tuple[int, str]
+assert infer_type(lambda x: x) == Callable[..., Any]
+
+# x = []
+# x.append(x)
+
+# print(infer_type(x))
+# assert infer_type(x) == list[list[A]]
