@@ -1,5 +1,6 @@
 import builtins
 import inspect
+import itertools
 import types
 import typing
 from enum import Enum, EnumType, Flag
@@ -7,9 +8,9 @@ from inspect import Parameter
 from types import GenericAlias, UnionType
 from typing import Any, TypeAliasType
 
-from .annotations import ExactAnn
 from typeutils.format import format_type
 
+from .annotations import ExactAnn
 from .error import SchemaError
 
 
@@ -36,10 +37,10 @@ def check(schema, /, *, _annotations: tuple[Any, ...] = (), _path: str = ''):
       return
 
     case typing.Union:
-      match typing.get_args(schema):
-        case ((other_type, types.NoneType) | (types.NoneType, other_type)):
-          check(other_type, _path=_path)
-          return
+      for arg in typing.get_args(schema):
+        check(arg, _path=_path)
+
+      return
 
     case TypeAliasType(__value__=value):
       check(value[*typing.get_args(schema)])
@@ -56,8 +57,13 @@ def check(schema, /, *, _annotations: tuple[Any, ...] = (), _path: str = ''):
     case TypeAliasType():
       check(schema.__value__)
 
-    case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
-      check(other_type, _path=_path)
+    # Not strictly necessary
+    case typing.Any:
+      return
+
+    case UnionType(__args__=args):
+      for arg in args:
+        check(arg, _path=_path)
 
     # Not strictly necessary as enums are classes anyway
     case EnumType() if issubclass(schema, (Enum, Flag)):
@@ -70,12 +76,18 @@ def check(schema, /, *, _annotations: tuple[Any, ...] = (), _path: str = ''):
         if exact_ann:
           raise SchemaError(f'Exact annotation is not allowed for abstract or protocol class {format_type(schema)} at {_path or "<root>"}')
       else:
-        functions = typing.get_overloads(schema.__init__) or [schema]
+        if hasattr(schema.__init__, '__module__'):
+          functions = typing.get_overloads(schema.__init__) or [schema.__init__]
+          skip_self = True
+        else:
+          functions = [schema]
+          skip_self = False
 
         for function in functions:
+          type_hints = typing.get_type_hints(function, include_extras=True)
           signature = inspect.signature(function)
 
-          for parameter in signature.parameters.values():
+          for parameter in itertools.islice(signature.parameters.values(), 1 if skip_self else 0, None):
             if parameter.kind is Parameter.POSITIONAL_ONLY:
               if parameter.default is Parameter.empty:
                 raise SchemaError(f'Positional-only parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} has no default value')
@@ -85,13 +97,14 @@ def check(schema, /, *, _annotations: tuple[Any, ...] = (), _path: str = ''):
             if parameter.kind is Parameter.VAR_POSITIONAL:
               continue
 
-            if parameter.annotation is Parameter.empty:
+            # Type hints can also be missing in other cases such as @no_type_check
+            if not parameter.name in type_hints:
               if parameter.default is Parameter.empty:
                 raise SchemaError(f'Parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is missing a type annotation or a default value')
 
               continue
 
-            check(parameter.annotation, _path=f'{_path}.{parameter.name}')
+            check(type_hints[parameter.name], _path=f'{_path}.{parameter.name}')
 
     case _:
       raise SchemaError(f'Unsupported type {format_type(schema)} at {_path or '<root>'}')
