@@ -1,7 +1,9 @@
-from typing import Any, Iterable, Optional
 import typing
+from typing import Annotated, Any, Iterable, Optional
 
 from .check import check
+from .error import SchemaError
+from .utils import assert_raises
 
 
 class A:
@@ -38,3 +40,7 @@ check(Optional[A | B])
 check(Any)
 # check(Iterable[A])
 # check(E)
+check(dict[Annotated[str, 'foo'], Any])
+
+with assert_raises(SchemaError):
+  check(dict[int, Any])

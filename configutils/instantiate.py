@@ -14,6 +14,7 @@ from typeutils import format_type, infer_type
 
 from .error import InstantiationError, SchemaError
 from .load import load
+from .utils import assert_raises
 
 
 FactoryAnn = object()
@@ -148,7 +149,7 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
 
       return local_instantiate(other_type, *nonnone_datas)
 
-    case _ if type(schema) is EnumType:
+    case EnumType():
       try:
         values = [schema(data) for data in datas]
       except ValueError as e:
@@ -270,17 +271,6 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
       raise SchemaError(f'Unsupported type {format_type(schema)}')
 
 
-@contextlib.contextmanager
-def assert_raises(exception_type: type[Exception], /):
-  try:
-    yield
-  except Exception as e:
-    if not isinstance(e, exception_type):
-      raise
-  else:
-    raise AssertionError(f'Expected {exception_type.__name__} to be raised, but no exception was raised')
-
-
 @dataclass
 class A:
   x: int
@@ -358,6 +348,7 @@ assert instantiate(J, 'a') == J.A
 # assert instantiate(Factory[A], dict(x=3, y='4'))() == A(3, '4')
 # assert instantiate(Annotated[type[A], FactoryDelayedArgs(0, 'x', 'y')], dict(x=3))(y='4') == A(3, '4')
 assert instantiate(None, None) is None
+assert instantiate(True, bool) is True
 
 
 with assert_raises(InstantiationError):

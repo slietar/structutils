@@ -6,33 +6,23 @@ import typing
 from enum import Enum, EnumType, Flag
 from inspect import Parameter
 from types import GenericAlias, UnionType
-from typing import Any, TypeAliasType
 
 from typeutils.format import format_type
+from typeutils.resolve import resolve
 
 from .annotations import ExactAnn
 from .error import SchemaError
 
 
-def check(schema, /, *, _annotations: tuple[Any, ...] = (), _path: str = ''):
+def check(schema_raw, /, *, _path: str = ''):
+  resolved = resolve(schema_raw)
+  schema = resolved.value
+  annotations = resolved.annotations
+
   if schema is None:
     return
 
-
   match typing.get_origin(schema):
-    case builtins.dict:
-      key_schema, value_schema = typing.get_args(schema)
-
-      if key_schema not in (int, str):
-        raise SchemaError(f'Unsupported key type {format_type(key_schema)}')
-
-      check(value_schema, _path=f'{_path}[]')
-      return
-
-    case typing.Annotated:
-      check(typing.get_args(schema)[0], _annotations=schema.__metadata__, _path=_path)
-      return
-
     case typing.Literal:
       return
 
@@ -42,20 +32,22 @@ def check(schema, /, *, _annotations: tuple[Any, ...] = (), _path: str = ''):
 
       return
 
-    case TypeAliasType(__value__=value):
-      check(value[*typing.get_args(schema)])
-      return
-
 
   match schema:
     case builtins.bool | builtins.float | builtins.int | builtins.str | types.NoneType | typing.Any:
       pass
 
-    case GenericAlias(__origin__=builtins.list):
-      check(schema.__args__[0], _path=f'{_path}[]')
+    case GenericAlias(__origin__=builtins.dict, __args__=(key_schema, value_schema)):
+      resolved_key_schema = resolve(key_schema).value
 
-    case TypeAliasType():
-      check(schema.__value__)
+      if resolved_key_schema is not str:
+        raise SchemaError(f'Unsupported key type {format_type(key_schema)}')
+
+      check(value_schema, _path=f'{_path}[]')
+      return
+
+    case GenericAlias(__origin__=builtins.list, __args__=(item_schema,)):
+      check(item_schema, _path=f'{_path}[]')
 
     # Not strictly necessary
     case typing.Any:
@@ -70,7 +62,7 @@ def check(schema, /, *, _annotations: tuple[Any, ...] = (), _path: str = ''):
       pass
 
     case _ if inspect.isclass(schema):
-      exact_ann = any(ann is ExactAnn for ann in _annotations)
+      exact_ann = any(ann is ExactAnn for ann in annotations)
 
       if inspect.isabstract(schema) or typing.is_protocol(schema):
         if exact_ann:
