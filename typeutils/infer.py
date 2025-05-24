@@ -6,10 +6,9 @@ from typing import Any, Callable
 
 
 # TODO: Use TypeForm in Python 3.15 (PEP 747)
-# TODO: Recursive values
 
-def infer_type(value: Any, /):
-  cache = set()
+def infer_type(value: Any, /) -> Any:
+  cache = set[int]()
 
   def infer(value: Any, /):
     value_id = id(value)

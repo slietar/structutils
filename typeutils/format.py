@@ -1,9 +1,10 @@
 import builtins
+import collections.abc
 import functools
 import types
 import typing
 from types import EllipsisType, NoneType, UnionType
-from typing import Generic, Literal, NewType, Optional, TypeVar
+from typing import Callable, Generic, Literal, NewType, Optional, TypeVar
 
 
 def format_type(type_, /, *, use_optional: bool = False) -> str:
@@ -21,9 +22,14 @@ def format_type(type_, /, *, use_optional: bool = False) -> str:
 
     return f'{' | '.join(map(format, args))}'
 
-  origin = typing.get_origin(type_)
+  match typing.get_origin(type_):
+    case collections.abc.Callable:
+      args, return_type = typing.get_args(type_)
 
-  match origin:
+      if args is Ellipsis:
+        return f'Callable[..., {format(return_type)}]'
+      else:
+        return f'Callable[[{', '.join(map(format, args))}], {format(return_type)}]'
     case typing.Union:
       return format_union(typing.get_args(type_))
     case typing.Literal:
@@ -79,3 +85,5 @@ assert format_type(Literal['a', 3]) == '''Literal['a', 3]'''
 assert format_type(type[A]) == 'type[A]'
 assert format_type(None) == 'None'
 assert format_type(NoneType) == 'None'
+assert format_type(Callable[[int, int], str]) == 'Callable[[int, int], str]'
+assert format_type(Callable[..., str]) == 'Callable[..., str]'
