@@ -3,8 +3,6 @@ import dataclasses
 import enum
 import functools
 import inspect
-import json
-import sys
 import types
 import typing
 from dataclasses import InitVar, dataclass
@@ -77,7 +75,7 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
       ]) | doc_dict
 
     case _ if inspect.isclass(schema):
-      # TODO: If @final, do not allow subclasses
+      # TODO: If @final, do not allow $schema
 
 
       variants = list[dict]()
@@ -134,6 +132,9 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
           title=schema.__name__,
         ) | optional_dict(description=schema.__doc__))
 
+      if len(variants) == 1:
+        return variants[0]
+
       return dict(
         anyOf=variants,
       )
@@ -142,45 +143,13 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
       return dict()
 
 
-class B(StrEnum):
-  X = 'optx'
-  """Option X"""
-
-  Y = 'opty'
-
-class NormalizationStrategies(Flag):
-  Batch = auto()
-
-  Layer = auto()
-  """Layer normalization"""
-
-
-# from torch.optim import Optimizer
-
+import json
+import sys
 
 @dataclass
 class A:
-  # x: str
-  # """Something"""
+  x: dict[str, str]
 
-  # y: int
-  # """Something else"""
-
-  # z: list[int]
-  # """A list of integers"""
-
-  # w: None
-  # """An optional string"""
-
-  # v: Optional[list[Optional[str]]]
-  # """An optional list of optional strings"""
-
-  normalization: NormalizationStrategies
-
-  # optimizer: Optimizer
-  it: Iterable[float]
-
-# pprint(generate(A))
 
 json.dump(
   generate(A),

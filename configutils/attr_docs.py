@@ -6,7 +6,7 @@ from typing import Any
 
 
 # From https://davidism.com/attribute-docstrings/
-def get_attr_docs(cls: type[Any]) -> dict[str, str]:
+def get_attr_docs(cls: type[Any], /) -> dict[str, str]:
   cls_node = ast.parse(textwrap.dedent(inspect.getsource(cls))).body[0]
 
   if not isinstance(cls_node, ast.ClassDef):
