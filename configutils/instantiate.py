@@ -109,7 +109,7 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
   match schema:
     case builtins.float:
       for data_type, data in zip(data_types, datas):
-        if not (data_type is int) | (data_type is float):
+        if (data_type is not int) and (data_type is not float):
           raise InstantiationError(f'Expected float, got {format_type(infer_type(data))}')
 
       return float(first_data)
