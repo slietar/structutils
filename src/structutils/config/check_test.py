@@ -1,5 +1,5 @@
-import typing
-from typing import Annotated, Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Annotated, Any, Optional, overload
 
 from .check import check
 from .error import SchemaError
@@ -13,11 +13,11 @@ class B:
   pass
 
 class C:
-  @typing.overload
+  @overload
   def __init__(self, a: A):
     pass
 
-  @typing.overload
+  @overload
   def __init__(self, a: B):
     pass
 
@@ -25,11 +25,11 @@ class C:
     pass
 
 class D:
-  def __init__(self, a: 'A'):
+  def __init__(self, a: A):
     pass
 
 class E:
-  def __init__(self, a: 'Optional[A]'):
+  def __init__(self, a: Optional[A]):
     pass
 
 check(A)
@@ -38,9 +38,11 @@ check(C)
 check(D)
 check(Optional[A | B])
 check(Any)
-# check(Iterable[A])
-# check(E)
+check(E)
 check(dict[Annotated[str, 'foo'], Any])
+
+with assert_raises(SchemaError):
+  check(Iterable[A])
 
 with assert_raises(SchemaError):
   check(dict[int, Any])

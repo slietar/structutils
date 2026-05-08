@@ -90,7 +90,7 @@ def check(schema_raw, /, *, _path: str = ''):
               continue
 
             # Type hints can also be missing in other cases such as @no_type_check
-            if not parameter.name in type_hints:
+            if parameter.name not in type_hints:
               if parameter.default is Parameter.empty:
                 raise SchemaError(f'Parameter "{parameter.name}" of {format_type(schema)} at {_path or '<root>'} is missing a type annotation or a default value')
 
