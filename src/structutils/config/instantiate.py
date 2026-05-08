@@ -10,7 +10,7 @@ from inspect import Parameter
 from types import GenericAlias, NoneType, UnionType
 from typing import Annotated, Any, Callable, Literal, Optional, TypeAliasType, override
 
-from typeutils import format_type, infer_type
+from src.structutils.types import format_type, infer_type
 
 from .error import InstantiationError, SchemaError
 from .load import load

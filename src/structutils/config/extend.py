@@ -6,7 +6,7 @@ from types import EllipsisType, GenericAlias, UnionType
 from typing import (Any, Generic, NewType, Optional, TypeAlias, TypeGuard,
                     TypeVar, Union, get_args, get_origin)
 
-from ..typeutils import format_type
+from ..types import format_type
 from .error import InstantiationError
 from .instantiate import instantiate
 
