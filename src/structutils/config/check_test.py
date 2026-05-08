@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from typing import Annotated, Any, Literal, Optional, overload
+from typing import Annotated, Any, Literal, NewType, Optional, overload
 
 from .check import check
 from .error import SchemaError
@@ -32,6 +32,8 @@ class E:
   def __init__(self, a: Optional[A]):
     pass
 
+F = NewType('F', int)
+
 check(A)
 check(A | B)
 check(C)
@@ -42,6 +44,7 @@ check(E)
 check(dict[Annotated[str, 'foo'], Any])
 check(Literal['a', 'b'])
 check(dict[Literal['a', 'b'], Any])
+check(F)
 
 with assert_raises(SchemaError):
   check(Iterable[A])

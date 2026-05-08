@@ -1,6 +1,6 @@
 import typing
 from dataclasses import dataclass
-from typing import Any, TypeAliasType
+from typing import Any, NewType, TypeAliasType
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +29,8 @@ def resolve(schema, /):
   match schema:
     case TypeAliasType():
       return resolve(schema.__value__)
+    case NewType():
+      return resolve(schema.__supertype__)
 
     # case TypeVar():
     #   raise TypeError(f'TypeVar {schema} cannot be resolved')

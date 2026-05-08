@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, Literal, Optional, override
+from typing import Annotated, Any, Literal, NewType, Optional, override
 
 from .error import InstantiationError, SchemaError
 from .instantiate import InheritedDict, InheritedDictAnn, instantiate
@@ -52,6 +52,18 @@ class J(Enum):
   A = 'a'
   B = 'b'
 
+@dataclass
+class K1:
+  key: Literal['1']
+
+@dataclass
+class K2:
+  key: Literal['2']
+
+type K = K1 | K2
+
+L = NewType('L', int)
+
 assert instantiate(int, 3) == 3
 assert instantiate(list[int], [3, 4]) == [3, 4]
 assert instantiate(float, 3) == 3.0
@@ -87,6 +99,8 @@ assert instantiate(None, None) is None
 assert instantiate(bool, True) is True
 assert instantiate(float | str, 'a') == 'a'
 assert instantiate(list[int | str], [3, '4']) == [3, '4']
+assert instantiate(K, dict(key='1')) == K1(key='1')
+assert instantiate(L, 3) == 3
 
 
 with assert_raises(InstantiationError):

@@ -6,7 +6,7 @@ import typing
 from enum import EnumType
 from inspect import Parameter
 from types import GenericAlias, NoneType, UnionType
-from typing import Annotated, Any, Optional, TypeAliasType
+from typing import Annotated, Any, NewType, Optional, TypeAliasType
 
 from ..types import format_type, infer_type
 from .check import check
@@ -138,6 +138,9 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
 
     case typing.Any:
       return first_data
+
+    case NewType(__supertype__=supertype):
+      return local_instantiate(supertype, first_data)
 
     # Handles . | None
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
