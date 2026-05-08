@@ -31,6 +31,7 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
   local_instantiate = functools.partial(instantiate, _partial=_partial)
 
   # print(f'Instantiating \033[31m{format_type(schema)}\033[0m with ' + ' and '.join(f'\033[31m{data!r}\033[0m' for data in datas) + (' (partial)' if _partial else ''))
+
   # from .check import check
   # check(schema)
 
@@ -103,6 +104,13 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
   data_types = [type(data) for data in datas]
 
   match schema:
+    case builtins.bool:
+      for data_type, data in zip(data_types, datas):
+        if data_type is not bool:
+          raise InstantiationError(f'Expected bool, got {format_type(infer_type(data))}')
+
+      return first_data
+
     case builtins.float:
       for data_type, data in zip(data_types, datas):
         if (data_type is not int) and (data_type is not float):

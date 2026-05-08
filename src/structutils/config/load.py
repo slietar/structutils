@@ -17,7 +17,7 @@ def load(specifier: str, /, *, allow_modules: bool) -> Any:
   """
 
   if __debug__ and not _get_regex(allow_modules=allow_modules).match(specifier):
-    raise ImportError(f'Invalid specifier "{specifier}"')
+    raise ImportError(f'Invalid specifier {specifier!r}')
 
   parts = specifier.split(':', maxsplit=1)
   module = importlib.import_module(parts[0])

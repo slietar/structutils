@@ -84,7 +84,7 @@ assert instantiate(J, 'a') == J.A
 # assert instantiate(Factory[A], dict(x=3, y='4'))() == A(3, '4')
 # assert instantiate(Annotated[type[A], FactoryDelayedArgs(0, 'x', 'y')], dict(x=3))(y='4') == A(3, '4')
 assert instantiate(None, None) is None
-assert instantiate(True, bool) is True
+assert instantiate(bool, True) is True
 
 
 with assert_raises(InstantiationError):
@@ -137,3 +137,6 @@ with assert_raises(InstantiationError):
 
 with assert_raises(InstantiationError):
   instantiate(J, 'c')
+
+with assert_raises(InstantiationError):
+    assert instantiate(bool, 1) is True

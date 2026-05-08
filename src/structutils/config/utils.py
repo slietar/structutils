@@ -10,3 +10,7 @@ def assert_raises(exception_type: type[Exception], /):
       raise
   else:
     raise AssertionError(f'Expected {exception_type.__name__} to be raised, but no exception was raised')
+
+
+def optional_dict(**kwargs):
+  return { key: value for key, value in kwargs.items() if value is not None }

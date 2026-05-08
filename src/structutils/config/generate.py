@@ -1,21 +1,18 @@
 import builtins
 import dataclasses
-import enum
 import functools
 import inspect
 import types
 import typing
-from dataclasses import InitVar, dataclass
-from enum import Enum, EnumType, Flag, IntEnum, StrEnum, auto
+from dataclasses import InitVar
+from enum import Enum, EnumType, Flag
 from inspect import Parameter
 from types import GenericAlias, UnionType
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Optional, Union
 
 from .attr_docs import get_attr_docs
+from .utils import optional_dict
 
-
-def optional_dict(**kwargs):
-  return { key: value for key, value in kwargs.items() if value is not None }
 
 def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True) -> Any:
   doc_dict = optional_dict(description=_parent_doc)
@@ -65,7 +62,7 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
     case GenericAlias(__origin__=builtins.list):
       return dict(
         type='array',
-        items=local_generate(schema.__args__[0])
+        items=local_generate(schema.__args__[0]),
       ) | doc_dict
 
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
@@ -103,7 +100,7 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
           properties=(subclass_params | {
             '_target_': dict(
               const=f'{subclass.__module__}:{subclass.__qualname__}',
-            )
+            ),
           }),
           title=subclass.__name__,
           additionalProperties=False,
@@ -141,18 +138,3 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
 
     case _:
       return dict()
-
-
-import json
-import sys
-
-@dataclass
-class A:
-  x: dict[str, str]
-
-
-json.dump(
-  generate(A),
-  sys.stdout,
-  indent=2,
-)
