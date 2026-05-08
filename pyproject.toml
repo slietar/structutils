@@ -1,5 +1,18 @@
+[build-system]
+requires = ["oryn~=2.1"]
+build-backend = "oryn"
+
 [project]
-name = "typeutils"
-version = "0.1.0"
-requires-python = ">=3.13"
-dependencies = []
+name = "structutils"
+version = "0.0"
+description = "Collection of utilities for working with structured data"
+license = "EUPL-1.2"
+readme = "readme.md"
+requires-python = "~=3.14"
+
+[project.urls]
+Repository = "https://github.com/slietar/structutils"
+
+[tool.oryn]
+include = ["src/*"]
+ignore = ["*_test.py"]
