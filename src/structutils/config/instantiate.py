@@ -10,7 +10,7 @@ from typing import Annotated, Any, Optional, TypeAliasType
 
 from ..types import format_type, infer_type
 from .check import check
-from .error import InstantiationError, SchemaError
+from .error import InstantiationError, SchemaError, SchemaErrorGroup
 from .load import load
 
 
@@ -150,6 +150,17 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
         return None
 
       return local_instantiate(other_type, *nonnone_datas)
+
+    case UnionType(__args__=args):
+      errors = list[Exception]()
+
+      for arg in args:
+        try:
+          return local_instantiate(arg, *datas)
+        except (InstantiationError, SchemaError) as e:
+          errors.append(e)
+
+      raise SchemaErrorGroup('Failed to instantiate with any of the union types', errors)
 
     case EnumType():
       try:

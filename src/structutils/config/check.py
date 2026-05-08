@@ -7,9 +7,8 @@ from enum import Enum, EnumType, Flag
 from inspect import Parameter
 from types import GenericAlias, UnionType
 
-from src.structutils.types.format import format_type
-from src.structutils.types.resolve import resolve
-
+from ..types.format import format_type
+from ..types.resolve import resolve
 from .annotations import ExactAnn
 from .error import SchemaError
 

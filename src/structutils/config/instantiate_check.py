@@ -85,13 +85,12 @@ assert instantiate(J, 'a') == J.A
 # assert instantiate(Annotated[type[A], FactoryDelayedArgs(0, 'x', 'y')], dict(x=3))(y='4') == A(3, '4')
 assert instantiate(None, None) is None
 assert instantiate(bool, True) is True
+assert instantiate(float | str, 'a') == 'a'
+assert instantiate(list[int | str], [3, '4']) == [3, '4']
 
 
 with assert_raises(InstantiationError):
   instantiate(list[int], [3, 4.0])
-
-with assert_raises(SchemaError):
-  assert instantiate(list[int | str], [3, '4']) == [3, '4']
 
 with assert_raises(InstantiationError):
   instantiate(A, dict(x=3))

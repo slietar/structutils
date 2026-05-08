@@ -3,3 +3,6 @@ class InstantiationError(Exception):
 
 class SchemaError(Exception):
   pass
+
+class SchemaErrorGroup(ExceptionGroup, SchemaError):
+  pass
