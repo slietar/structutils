@@ -9,6 +9,7 @@ from types import GenericAlias, NoneType, UnionType
 from typing import Annotated, Any, Optional, TypeAliasType
 
 from ..types import format_type, infer_type
+from .check import check
 from .error import InstantiationError, SchemaError
 from .load import load
 
@@ -20,20 +21,20 @@ InheritedDictAnn = object()
 type InheritedDict[K, V] = Annotated[dict[K, V], InheritedDictAnn]
 
 
-def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ...] = (), _factory: bool = False, _partial: bool = False) -> Any:
+def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ...] = (), _check: bool = __debug__, _factory: bool = False, _partial: bool = False) -> Any:
   """
   Instantiate a structure from a type and JSON-serializable corresponding data.
 
   The data is deep-copied and no reference to the original object is retained.
   """
 
+  if _check:
+    check(schema)
+
   datas = (first_data, *other_datas)
-  local_instantiate = functools.partial(instantiate, _partial=_partial)
+  local_instantiate = functools.partial(instantiate, _check=False, _partial=_partial)
 
   # print(f'Instantiating \033[31m{format_type(schema)}\033[0m with ' + ' and '.join(f'\033[31m{data!r}\033[0m' for data in datas) + (' (partial)' if _partial else ''))
-
-  # from .check import check
-  # check(schema)
 
 
   if schema is None:
@@ -43,9 +44,6 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
     case builtins.dict:
       inherit = any(ann is InheritedDictAnn for ann in _annotations)
       key_schema, value_schema = typing.get_args(schema)
-
-      if key_schema not in (int, str):
-        raise SchemaError(f'Unsupported key type {format_type(key_schema)}')
 
       for data in datas:
         if type(data) is not dict:

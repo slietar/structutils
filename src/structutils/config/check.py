@@ -14,6 +14,18 @@ from .annotations import ExactAnn
 from .error import SchemaError
 
 
+def is_string_type(schema):
+  match typing.get_origin(schema):
+    case typing.Literal:
+      return all(isinstance(arg, str) for arg in typing.get_args(schema))
+
+  match schema:
+    case builtins.str:
+      return True
+
+    case _:
+      return False
+
 def check(schema_raw, /, *, _path: str = ''):
   resolved = resolve(schema_raw)
   schema = resolved.value
@@ -40,7 +52,7 @@ def check(schema_raw, /, *, _path: str = ''):
     case GenericAlias(__origin__=builtins.dict, __args__=(key_schema, value_schema)):
       resolved_key_schema = resolve(key_schema).value
 
-      if resolved_key_schema is not str:
+      if not is_string_type(resolved_key_schema):
         raise SchemaError(f'Unsupported key type {format_type(key_schema)}')
 
       check(value_schema, _path=f'{_path}[]')

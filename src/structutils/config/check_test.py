@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from typing import Annotated, Any, Optional, overload
+from typing import Annotated, Any, Literal, Optional, overload
 
 from .check import check
 from .error import SchemaError
@@ -40,9 +40,14 @@ check(Optional[A | B])
 check(Any)
 check(E)
 check(dict[Annotated[str, 'foo'], Any])
+check(Literal['a', 'b'])
+check(dict[Literal['a', 'b'], Any])
 
 with assert_raises(SchemaError):
   check(Iterable[A])
 
 with assert_raises(SchemaError):
   check(dict[int, Any])
+
+with assert_raises(SchemaError):
+  check(dict[Literal['a', 3], Any])

@@ -11,10 +11,14 @@ from types import GenericAlias, UnionType
 from typing import Any, Optional, Union
 
 from .attr_docs import get_attr_docs
+from .check import check
 from .utils import optional_dict
 
 
 def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True) -> Any:
+  if _root and __debug__:
+    check(schema)
+
   doc_dict = optional_dict(description=_parent_doc)
   local_generate = functools.partial(generate, _root=False)
 
