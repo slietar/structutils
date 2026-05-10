@@ -43,6 +43,9 @@ def infer_type(value: Any, /) -> Any:
     if value_type is tuple:
       return tuple[*(map(infer, value))]
 
+    if value_type is type:
+      return type[value]
+
     # For generics
     if hasattr(value, '__orig_class__'):
       return value.__orig_class__
