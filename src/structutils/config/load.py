@@ -10,7 +10,7 @@ def _get_regex(*, allow_modules: bool = False):
   name = r'[a-z_]\w*(?:\.[a-z_]\w*)*'
   return re.compile(rf'^{name}(?::{name}){'?' if allow_modules else ''}$', flags=re.IGNORECASE)
 
-def load(specifier: str, /, *, allow_modules: bool) -> Any:
+def load(specifier: str, /, *, allow_modules: bool = False) -> Any:
   """
   Raises
     ImportError
