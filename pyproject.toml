@@ -4,7 +4,7 @@ build-backend = "oryn"
 
 [project]
 name = "pstructutils"
-version = "0.0"
+version = "1.0"
 description = "Library for working with structured data"
 license = "EUPL-1.2"
 readme = "readme.md"
