@@ -1,32 +1,95 @@
 # Structutils
 
+Structutils is a Python library for working with structured data.
+
+It supports Python 3.14 and later.
+
+
+## Installation
+
+Structutils is available on PyPI under the name `structutils`.
+
 
 ## Types
+
+### Inferring a type form from a value
+
+```py
+import structutils
+
+structutils.infer_type([1, 2, 3]) # => list[int]
+```
 
 ### Formatting a type form
 
 ```py
-from structutils.format import format
+import structutils
 
-format(list[int]) # => 'list[int]'
-```
-
-### Inferring a type from a value
-
-```py
-from structutils.format import infer
-
-infer([1, 2, 3]) # => list[int]
+structutils.format_type(list[int]) # => 'list[int]'
 ```
 
 
 ## Configuration
 
-### Designing and generating a schema
+### Creating and validating a schema
+
+```py
+import structutils
+
+@dataclass
+class User:
+  age: int
+  name: str
+
+type Users = list[User]
+
+try:
+  structutils.check(Users)
+except structutils.SchemaError as e:
+  print(f"Invalid schema: {e}")
+```
+
+### Generating a JSON schema from a schema
+
+```py
+import structutils
+
+with Path('schema.json').open('w') as file:
+  json.dump(structutils.generate(Users), file)
+```
+
+### Instantiating data using a schema
+
+```py
+import structutils
+
+with Path('data.json').open() as file:
+  raw_data = json.load(file)
+
+try:
+  data = structutils.instantiate(Users, raw_data)
+except structutils.InstantiationError as e:
+  print(f"Invalid data: {e}")
+```
+
+
+## Miscellaneous
+
+### Loading an object from a string specifier
+
+```py
+import structutils
+
+pathlib = structutils.load('pathlib', allow_modules=True)
+Iterable = structutils.load('collections.abc:Iterable')
+```
+
+
+<!-- ### Designing and generating a schema
 
 Supported Python types are:
 
-- **Basic types** – `float`, `int`, `str`, `bool`, `None` TODO: implement bool, and check int
+- **Basic types** – `float`, `int`, `str`, `bool`, `None`
 - **List-like collections** – `Iterable`, `list`, `tuple`
 
   These are implemented as an array.
@@ -146,3 +209,5 @@ class Config:
   optimizer: Unchecked[Optimizer]
   optimizer: Exact[Optimizer] # Same as if Optimizer is @final
 ```
+
+-->

@@ -14,5 +14,6 @@
 - Collection protocols such as Mapping, Sequence, Container, etc.
 - Default type variables
 - TypedDict
+- Exhaustive dict when key is a Literal. Be careful with duplicate literals
 
 Alternatives: https://stackoverflow.com/a/74505608
