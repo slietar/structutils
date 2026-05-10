@@ -3,7 +3,7 @@ requires = ["oryn~=2.1"]
 build-backend = "oryn"
 
 [project]
-name = "structutils"
+name = "pstructutils"
 version = "0.0"
 description = "Library for working with structured data"
 license = "EUPL-1.2"

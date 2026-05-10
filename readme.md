@@ -7,7 +7,7 @@ It supports Python 3.14 and later.
 
 ## Installation
 
-Structutils is available on PyPI under the name `structutils`.
+Structutils is available on PyPI under the name `pstructutils`.
 
 
 ## Types
