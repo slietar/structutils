@@ -10,18 +10,37 @@ from inspect import Parameter
 from types import GenericAlias, UnionType
 from typing import Any, Optional, TypeAliasType
 
+from ..types.format import format_type
 from ..types.resolve import resolve
 from .attr_docs import get_attr_docs
 from .check import check
 from .utils import optional_dict
 
 
-def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True) -> Any:
-  if _root and __debug__:
-    check(schema)
+def generate(
+  schema_raw,
+  /, *,
+  _check: bool = __debug__,
+  _parent_doc: Optional[str] = None,
+  root_schema_property: bool = True,
+) -> Any:
+  if _check:
+    check(schema_raw)
+
+  resolved = resolve(schema_raw)
+  schema = resolved.value
+
+  # print(f'Generating schema for \033[31m{format_type(schema)}\033[0m')
 
   doc_dict = optional_dict(description=_parent_doc)
-  local_generate = functools.partial(generate, _root=False)
+  local_generate = functools.partial(generate, root_schema_property=False, _check=False)
+
+  if root_schema_property:
+    root_props = {
+      '$schema': dict(type='string'),
+    } if root_schema_property else {}
+  else:
+    root_props = {}
 
   if schema is None:
     return dict(type='null') | doc_dict
@@ -29,20 +48,20 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
   match typing.get_origin(schema):
     case builtins.dict:
       key_schema, value_schema = typing.get_args(schema)
-      resolved_key_schema = resolve(key_schema)
-      print(schema, key_schema, value_schema)
+      resolved_key = resolve(key_schema)
 
-      if typing.get_origin(resolved_key_schema) is typing.Literal:
+      if typing.get_origin(resolved_key.value) is typing.Literal:
         return dict(
           type='object',
           properties=({
-            arg: local_generate(value_schema) for arg in typing.get_args(resolved_key_schema.value)
-          }),
+            arg: local_generate(value_schema) for arg in typing.get_args(resolved_key.value)
+          } | root_props),
           additionalProperties=False,
         ) | doc_dict
 
       return dict(
         type='object',
+        properties=root_props,
         additionalProperties=local_generate(value_schema),
       ) | doc_dict
 
@@ -50,7 +69,7 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
       args = typing.get_args(schema)
 
       return dict(anyOf=[
-        dict(const=value, title=str(value)) | optional_dict(description=str(value)) for value in args
+        dict(const=value, title=str(value)) for value in args
       ]) | doc_dict
 
     case typing.Union:
@@ -62,7 +81,7 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
           ]) | doc_dict
 
     case TypeAliasType(__value__=value):
-      return local_generate(value, _parent_doc=_parent_doc)
+      return local_generate(value, root_schema_property=root_schema_property, _parent_doc=_parent_doc)
 
   match schema:
     case builtins.float:
@@ -105,18 +124,17 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
 
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
       return dict(anyOf=[
-        local_generate(other_type),
+        local_generate(other_type, root_schema_property=root_schema_property),
         dict(type='null'),
       ]) | doc_dict
 
     case UnionType(__args__=args):
       return dict(
-        anyOf=[local_generate(arg) for arg in args],
+        anyOf=[local_generate(arg, root_schema_property=root_schema_property) for arg in args],
       ) | doc_dict
 
     case _ if inspect.isclass(schema):
       # TODO: If @final, do not allow $schema
-
 
       variants = list[dict]()
 
@@ -150,17 +168,13 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
           # required=[parameter.name for parameter in signature.parameters.values() if parameter.default is Parameter.empty and parameter.kind is Parameter.POSITIONAL_OR_KEYWORD],
         ) | optional_dict(description=subclass.__doc__))
 
-      extra_props = {
-        '$schema': dict(type='string'),
-      } if _root else {}
-
       if dataclasses.is_dataclass(schema):
         fields = dataclasses.fields(schema)
         field_docs = get_attr_docs(schema)
 
         variants.append(dict(
           type='object',
-          properties=(extra_props | { field.name: local_generate(field.type, _parent_doc=field_docs.get(field.name)) for field in fields }),
+          properties=(root_props | { field.name: local_generate(field.type, _parent_doc=field_docs.get(field.name)) for field in fields }),
           title=schema.__name__,
           additionalProperties=False,
           required=[field.name for field in fields if field.default is dataclasses.MISSING and not isinstance(field, InitVar)],
@@ -168,7 +182,7 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
       else:
         variants.append(dict(
           type='object',
-          properties=extra_props,
+          properties=root_props,
           title=schema.__name__,
         ) | optional_dict(description=schema.__doc__))
 
@@ -180,6 +194,4 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
       )
 
     case _:
-      print(type(schema), type(typing.get_origin(schema)))
-      raise TypeError(f'Unsupported schema type: {schema!r}')
-      return dict()
+      raise NotImplementedError(f'Unsupported schema type: {format_type(schema)}')

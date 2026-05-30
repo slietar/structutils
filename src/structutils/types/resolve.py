@@ -1,3 +1,4 @@
+from annotationlib import ForwardRef
 import functools
 import operator
 import typing
@@ -36,6 +37,9 @@ def resolve(schema, /, *, allow_unspecialized: bool = False) -> ResolvedType:
       return resolve(value[*typing.get_args(schema)])
 
   match schema:
+    case ForwardRef():
+      return resolve(schema.evaluate())
+
     case TypeAliasType(__value__=value):
       if not schema.__type_params__:
         return resolve(value)
