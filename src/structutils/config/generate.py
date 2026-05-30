@@ -8,8 +8,9 @@ from dataclasses import InitVar
 from enum import Enum, EnumType, Flag
 from inspect import Parameter
 from types import GenericAlias, UnionType
-from typing import Any, Optional, Union
+from typing import Any, Optional, TypeAliasType
 
+from ..types.resolve import resolve
 from .attr_docs import get_attr_docs
 from .check import check
 from .utils import optional_dict
@@ -25,13 +26,43 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
   if schema is None:
     return dict(type='null') | doc_dict
 
-  if typing.get_origin(schema) is Union:
-    match typing.get_args(schema):
-      case ((other_type, types.NoneType) | (types.NoneType, other_type)):
-        return dict(anyOf=[
-          local_generate(other_type),
-          dict(type='null'),
-        ]) | doc_dict
+  match typing.get_origin(schema):
+    case builtins.dict:
+      key_schema, value_schema = typing.get_args(schema)
+      resolved_key_schema = resolve(key_schema)
+      print(schema, key_schema, value_schema)
+
+      if typing.get_origin(resolved_key_schema) is typing.Literal:
+        return dict(
+          type='object',
+          properties=({
+            arg: local_generate(value_schema) for arg in typing.get_args(resolved_key_schema.value)
+          }),
+          additionalProperties=False,
+        ) | doc_dict
+
+      return dict(
+        type='object',
+        additionalProperties=local_generate(value_schema),
+      ) | doc_dict
+
+    case typing.Literal:
+      args = typing.get_args(schema)
+
+      return dict(anyOf=[
+        dict(const=value, title=str(value)) | optional_dict(description=str(value)) for value in args
+      ]) | doc_dict
+
+    case typing.Union:
+      match typing.get_args(schema):
+        case ((other_type, types.NoneType) | (types.NoneType, other_type)):
+          return dict(anyOf=[
+            local_generate(other_type),
+            dict(type='null'),
+          ]) | doc_dict
+
+    case TypeAliasType(__value__=value):
+      return local_generate(value, _parent_doc=_parent_doc)
 
   match schema:
     case builtins.float:
@@ -69,11 +100,19 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
         items=local_generate(schema.__args__[0]),
       ) | doc_dict
 
+    case TypeAliasType():
+      return local_generate(schema.__value__)
+
     case UnionType(__args__=((other_type, types.NoneType) | (types.NoneType, other_type))):
       return dict(anyOf=[
         local_generate(other_type),
         dict(type='null'),
       ]) | doc_dict
+
+    case UnionType(__args__=args):
+      return dict(
+        anyOf=[local_generate(arg) for arg in args],
+      ) | doc_dict
 
     case _ if inspect.isclass(schema):
       # TODO: If @final, do not allow $schema
@@ -141,4 +180,6 @@ def generate(schema, /, *, _parent_doc: Optional[str] = None, _root: bool = True
       )
 
     case _:
+      print(type(schema), type(typing.get_origin(schema)))
+      raise TypeError(f'Unsupported schema type: {schema!r}')
       return dict()
