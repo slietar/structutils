@@ -4,5 +4,5 @@ class InstantiationError(Exception):
 class SchemaError(Exception):
   pass
 
-class SchemaErrorGroup(ExceptionGroup, SchemaError):
+class InstantiationErrorGroup(ExceptionGroup, InstantiationError):
   pass

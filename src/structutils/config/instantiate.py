@@ -10,7 +10,7 @@ from typing import Annotated, Any, NewType, Optional, TypeAliasType
 
 from ..types import format_type, infer_type
 from .check import check
-from .error import InstantiationError, SchemaError, SchemaErrorGroup
+from .error import InstantiationError, SchemaError, InstantiationErrorGroup
 from .load import load
 
 
@@ -163,7 +163,7 @@ def instantiate(schema, first_data, /, *other_datas, _annotations: tuple[Any, ..
         except (InstantiationError, SchemaError) as e:
           errors.append(e)
 
-      raise SchemaErrorGroup('Failed to instantiate with any of the union types', errors)
+      raise InstantiationErrorGroup('Failed to instantiate with any of the union types', errors)
 
     case EnumType():
       try:

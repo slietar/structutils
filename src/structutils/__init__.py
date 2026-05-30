@@ -1,6 +1,6 @@
 # ruff: noqa: F401
 
-from .config.error import InstantiationError, SchemaError, SchemaErrorGroup
+from .config.error import InstantiationError, SchemaError, InstantiationErrorGroup
 from .config.generate import generate
 from .config.instantiate import instantiate
 from .config.load import load
