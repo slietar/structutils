@@ -1,5 +1,6 @@
 # Notes
 
+- Frozendict
 - Factory
 - Maybe only accept subclasses from the same module (or descending modules)
 - Root imports
