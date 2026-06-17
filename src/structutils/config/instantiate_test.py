@@ -64,6 +64,8 @@ type K = K1 | K2
 
 L = NewType('L', int)
 
+type M[T] = T
+
 assert instantiate(int, 3) == 3
 assert instantiate(list[int], [3, 4]) == [3, 4]
 assert instantiate(float, 3) == 3.0
@@ -101,6 +103,7 @@ assert instantiate(float | str, 'a') == 'a'
 assert instantiate(list[int | str], [3, '4']) == [3, '4']
 assert instantiate(K, dict(key='1')) == K1(key='1')
 assert instantiate(L, 3) == 3
+# assert instantiate(M[int], 3) == 3
 
 
 with assert_raises(InstantiationError):

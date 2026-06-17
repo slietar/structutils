@@ -34,6 +34,8 @@ class E:
 
 F = NewType('F', int)
 
+type G[T] = T
+
 check(A)
 check(A | B)
 check(C)
@@ -45,6 +47,7 @@ check(dict[Annotated[str, 'foo'], Any])
 check(Literal['a', 'b'])
 check(dict[Literal['a', 'b'], Any])
 check(F)
+check(G[int])
 
 with assert_raises(SchemaError):
   check(Iterable[A])
