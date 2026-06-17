@@ -68,6 +68,12 @@ def generate(
     case typing.Literal:
       args = typing.get_args(schema)
 
+      if len(args) == 1:
+        return dict(
+          const=args[0],
+          title=str(args[0]),
+        ) | doc_dict
+
       return dict(anyOf=[
         dict(const=value, title=str(value)) for value in args
       ]) | doc_dict
